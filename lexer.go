@@ -1,5 +1,3 @@
-package tokenizer
-
 /* Synopsis::
 
 // create an input channel for tokenization:
@@ -25,6 +23,7 @@ close(in)
 // wait for the output processing to complete
 <-semaphore
 */
+package tokenizer
 
 import (
 	"fmt"
@@ -37,7 +36,7 @@ import (
 	"unicode/utf8"
 )
 
-// This structure holds the lexer options
+// The lexer structure holds the lexer options
 // and the state of the scanner.
 type lexer struct {
 	name   string     // an ID for this lexer (for logging)
@@ -51,8 +50,8 @@ type lexer struct {
 	options Option      // lexer options (Spaces, Entities, etc.)
 }
 
-// the scanner's states are encoded as state functions
-// that return the scanner's next state
+// The scanner's states are encoded as state functions
+// that return the scanner's next state.
 type stateFn func(*lexer) stateFn
 
 // a lexer configuration option
@@ -86,32 +85,34 @@ var normalQuote = map[rune]string{
 	'\'': "\"", // single quote/apostrophe to double quote
 }
 
-// Starts a scanner process to lex the input, returning an output channel.
-// outputBufferSize is the buffer size of the output channel.
+// Lex starts a scanner process to lex the input,
+// returning an output channel.
+// The outputBufferSize is the buffer size
+// that should be used to create the output channel.
 //
 // The scanner waits for strings to lex on the input channel.
 // After scanning, it send the found tokens back via the output channel.
-// After all tokens have been sent, for the given input, an EndToken is sent.
+// After all tokens have been output for a given input, an EndToken is sent.
 // If the input channel is closed,
-// the output channel closes after the last token has been emitted.
+// the output channel closes after the last (End) token has been emitted.
 //
 // Possible options; combine Option values by or-ing ("|"):
 //
-// Spaces:
-//   emit space tokens.
-// Linebreak:
-//   emit tokens containing EOLMarkers.
-// Entities:
-//   resolve and replace HTML entities (/&\w+;/).
-// Quotes:
-//   replace two single with one double quote and
-//   U+02BC (modifier apostrophe) with U+0027 ("'" - apostrophe).
-// Lowercase:
-//   lower-case all words.
-// NoOptions:
-//   use none of the options (the zero value default).
-// AllOptions:
-//   use all of the options.
+//   Spaces:
+//     emit space tokens.
+//   Linebreak:
+//     emit tokens containing EOLMarkers.
+//   Entities:
+//     resolve and replace HTML entities (/&\w+;/).
+//   Quotes:
+//     replace two single with one double quote and
+//     U+02BC (modifier apostrophe) with U+0027 ("'" - apostrophe).
+//   Lowercase:
+//     lower-case all words.
+//   NoOptions:
+//     use none of the options (the zero value default).
+//   AllOptions:
+//     use all of the options.
 func Lex(input chan string, outputBufferSize int, options Option) chan Token {
 	l := &lexer{
 		name:    fmt.Sprintf("lexer-%04d", rand.Intn(1e4)),
@@ -166,7 +167,7 @@ func (l *lexer) lowersWords() bool {
 	return l.options&Lowercase != 0
 }
 
-// receive strings from the input channel;
+// run receives strings from the input channel;
 // then, scan the string, storing the emitted tokens;
 // finally, send the tokens back through the output channel;
 // break the loop and send back `nil` if the input is closed
@@ -203,13 +204,13 @@ func (l *lexer) run() {
 	glog.Infof("%s shutting down\n", l.name)
 }
 
-// decode the last rune once more from the buffer
+// lastRune decodes the last rune once more from the buffer
 func (l *lexer) lastRune() (r rune) {
 	r, _ = utf8.DecodeRuneInString(l.buffer[l.pos-l.width:])
 	return
 }
 
-// output the scanned token,
+// emit outputs the scanned token,
 // assigning it the given class;
 // lowercase words as requested;
 // moves the scanner start offset
@@ -224,7 +225,7 @@ func (l *lexer) emit(class TokenClass) {
 	l.start = l.pos
 }
 
-// return the next rune in the buffer;
+// scan returns the next rune in the buffer;
 // return zero if there are no more runes to decode;
 // moves the scanner's position on the buffer
 func (l *lexer) scan() (r rune) {
@@ -238,13 +239,13 @@ func (l *lexer) scan() (r rune) {
 	return r
 }
 
-// skip over the scanned runes (instead of emitting them);
+// ignore skips over the scanned runes (instead of emitting them);
 // moves the scanner's start offset
 func (l *lexer) ignore() {
 	l.start = l.pos
 }
 
-// move the scanner back one rune;
+// undo moves the scanner back one rune;
 // can only undo the last scan();
 // moves the scanner's position on the buffer
 func (l *lexer) undo() {
@@ -252,7 +253,7 @@ func (l *lexer) undo() {
 	l.width = 0
 }
 
-// preview the next rune without consuming it
+// peek previews the next rune without consuming it
 func (l *lexer) peek() rune {
 	w := l.width
 	r := l.scan()
@@ -261,7 +262,7 @@ func (l *lexer) peek() rune {
 	return r
 }
 
-// consume the next rune if it's from the valid set
+// accept consumes the next rune if it's from the valid set
 // using undo() after this call has no effect
 // if the rune was not accepted
 // until a new scan() is made
@@ -274,7 +275,7 @@ func (l *lexer) accept(valid string) bool {
 	}
 }
 
-// consume runes while from the valid set;
+// acceptAll consumes runes while they are in a set of valid runes;
 // using undo() after this call has no effect
 // until a new scan() is made
 func (l *lexer) acceptAll(valid string) {
@@ -283,7 +284,7 @@ func (l *lexer) acceptAll(valid string) {
 	l.undo()
 }
 
-// consume runes while they test positively;
+// acceptOn consume runes while they test positively;
 // using undo() after this call has no effect
 // until a new scan() is made
 func (l *lexer) acceptOn(test func(rune) bool) {
@@ -298,7 +299,7 @@ func (l *lexer) acceptOn(test func(rune) bool) {
 	l.undo()
 }
 
-// replace text representing a valid HTML entity
+// probeEntity replaces text representing a valid HTML entity
 //
 // This method assumes the lexer has just consumed the required ampersand.
 // If a valid HTML entity string is detected, the lexer will
@@ -330,7 +331,7 @@ func (l *lexer) probeEntity() bool {
 // these lexer functions return the next
 // state for the scanner as a function
 
-// tokenize any kind of text
+// lexText tokenizes any kind of text
 //
 // Given the lexer options, this function might also
 // emit space and EOL tokens.
@@ -366,7 +367,7 @@ func lexText(l *lexer) stateFn {
 	}
 }
 
-// stop scanning, panicking if the lexer isn't in a valid terminal state
+// lexEnd stops scanning, panicking if the lexer isn't in a valid terminal state
 func lexEnd(l *lexer) stateFn {
 	if l.pos != len(l.buffer) {
 		glog.Errorf("unseen content: %q\n", l.buffer[l.pos:])
@@ -378,7 +379,7 @@ func lexEnd(l *lexer) stateFn {
 	return nil // stops the state loop
 }
 
-// consume and produce a word
+// lexWord consumes and produces a word
 //
 // Given the lexer options, this function might
 // also replace HTML entities.
@@ -409,7 +410,7 @@ func lexWord(l *lexer) stateFn {
 	}
 }
 
-// consume and produce a number
+// lexNumber consumes and produces a number
 func lexNumber(l *lexer) stateFn {
 	l.acceptOn(unicode.IsDigit)
 	switch r := l.scan(); r {
@@ -435,7 +436,7 @@ func lexNumber(l *lexer) stateFn {
 	return lexText // scan next token
 }
 
-// consume and produce a symbol
+// lexSymbol consumes and produces a symbol
 //
 // If the symbol is '-' and followed by a digit,
 // produce a number instead.

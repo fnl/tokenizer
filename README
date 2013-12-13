@@ -1,0 +1,31 @@
+github.com/fnl/tokenizer
+------------------------
+
+Installation:
+go get github.com/fnl/tokenizer
+
+A concurrent, deterministic finite state tokenizer for Latin scripts that separates strings into words, numbers, and symbols.
+Words may be connected by dashes, underscores, and dots (but cannot start or end with those characters).
+Numbers may contain commas between digits, but only before the comma-separator (a dot).
+Anything else not a linebreak, control character, or space is considered a symbol.
+Symbols are always single runes.
+
+Options:
+Normalization of quotes and dashes;
+Tokenization of spaces and/or linebreaks;
+Lowercase all words;
+Unescaping of HTML entities.
+
+In addition, a command-line interface is provided:
+
+github.com/fnl/tokenizer/fnltok
+-------------------------------
+
+Usage:
+fnltok [options] [TEXTFILE ...]
+
+A high-throughput, line-based command-line interface for the tokenizer that writes the tokens to <STDOUT>.
+This script is about 100 times faster than an equivalent Perl tokenizer using regular expressions for the same task.
+It can tokenize input based on lines and/or tab-separated values (while preserving the tabs).
+The latter is useful to tokenize text in tabulated data files.
+Because file I/O soon becomes the main bottleneck, having more than two or three parallel tokenizer processes ($GOMAXPROCS) running does not improve its speed any further.

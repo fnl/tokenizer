@@ -28,7 +28,7 @@ var className = []string{
 type Token struct {
 	Class TokenClass // the class of the token
 	Value string     // the value of the token
-	PoS   string     // the token's part-of-speech (not set by the lexer)
+	//PoS   string     // the token's part-of-speech (not set by the lexer)
 }
 
 // the token's class name
@@ -38,11 +38,11 @@ func (t *Token) ClassName() string {
 
 // the token's value
 func (t *Token) String() string {
-	if t.PoS != "" {
-		return fmt.Sprintf("%s:%q:$s", t.ClassName(), t.Value, t.PoS)
-	} else {
-		return fmt.Sprintf("%s:%q", t.ClassName(), t.Value)
-	}
+	//if t.PoS != "" {
+	//	return fmt.Sprintf("%s:%q:$s", t.ClassName(), t.Value, t.PoS)
+	//} else {
+	return fmt.Sprintf("%s:%q", t.ClassName(), t.Value)
+	//}
 }
 
 // true if the token marks the end of an input

@@ -1,3 +1,10 @@
+/*
+A high-throughput, line-based command-line interface for the tokenizer that writes the tokens to <STDOUT>.
+This script is about 100 times faster than an equivalent Perl tokenizer using regular expressions for the same task.
+It can tokenize input based on lines and/or tab-separated values (while preserving the tabs).
+The latter is useful to tokenize text in tabulated data files.
+Because file I/O soon becomes the main bottleneck, having more than two or three parallel tokenizer processes ($GOMAXPROCS) running does not improve its speed any further.
+*/
 package main
 
 import (

@@ -1,27 +1,45 @@
-/* Synopsis::
+/*
+A concurrent, deterministic finite state tokenizer
+for Latin scripts that separates strings into words, numbers, and symbols.
+Words may be connected by dashes, underscores, and dots
+(but cannot start or end with those characters).
+Numbers may contain commas between digits,
+but only before the comma-separator (a dot).
+Anything else not a linebreak, control character,
+or space is considered a symbol.
+Symbols are always single runes.
 
-// create an input channel for tokenization:
-in := make(chan string)
+Options:
+Normalization of quotes and dashes;
+Tokenization of spaces and/or linebreaks;
+Lowering the case of all words;
+Unescaping of HTML entities.
 
-// start the tokenizer;
-// returns an output channel of tokens:
-out := Lex(in, 100, AllOptions)
+SYNOPSIS
 
-// a semaphore to synchronize downstream results
-semaphore := make(chan int)
+  // create an input channel for tokenization:
+  in := make(chan string)
 
-// somehow concurrently process the tokens...
-go processTokens(out, semaphore)
+  // start the tokenizer;
+  // returns an output channel of tokens:
+  out := Lex(in, 100, AllOptions)
 
-// send data to the tokenizer
-for data := range myInput {
-  in <- data
-}
-// and close the input stream once done
-close(in)
+  // a semaphore to synchronize downstream results
+  semaphore := make(chan int)
 
-// wait for the output processing to complete
-<-semaphore
+  // somehow concurrently process the tokens...
+  go processTokens(out, semaphore)
+
+  // send data to the tokenizer
+  for data := range myInput {
+    in <- data
+  }
+  // and close the input stream once done
+  close(in)
+
+  // wait for the output processing to complete
+  <-semaphore
+
 */
 package tokenizer
 
@@ -57,7 +75,6 @@ type stateFn func(*lexer) stateFn
 // a lexer configuration option
 type Option int
 
-// all possible options for the lexer
 const (
 	Spaces     Option = 1 << iota   // emit space tokens
 	Linebreaks Option = 1 << iota   // emit EOL tokens
@@ -85,8 +102,8 @@ var normalQuote = map[rune]string{
 	'\'': "\"", // single quote/apostrophe to double quote
 }
 
-// Lex starts a scanner process to lex the input,
-// returning an output channel.
+// Lex starts a scanner process to lex string input,
+// returning a Token output channel.
 // The outputBufferSize is the buffer size
 // that should be used to create the output channel.
 //
@@ -124,12 +141,12 @@ func Lex(input chan string, outputBufferSize int, options Option) chan Token {
 	return l.output
 }
 
-// create a lexer with name "lexer-DDDD" where D is a random digit and no options
+// create a lexer with no options
 func LexNoOptions(input chan string, outputBufferSize int) chan Token {
 	return Lex(input, outputBufferSize, NoOptions)
 }
 
-// create a lexer with name "lexer-DDDD" where D is a random digit and using all options
+// create a lexer using all options
 func LexAllOptions(input chan string, outputBufferSize int) chan Token {
 	return Lex(input, outputBufferSize, AllOptions)
 }
@@ -137,7 +154,7 @@ func LexAllOptions(input chan string, outputBufferSize int) chan Token {
 // create a lexer that unescapes entities, maps quotes and lowercases words,
 // with an output buffer of 100 tokens
 //
-// This lexer is particularly useful to parse line-based input.
+// This lexer is particularly useful to parse generic, line-based input.
 func LexLines(input chan string) chan Token {
 	return Lex(input, 100, Entities|Quotes|Lowercase)
 }

@@ -29,7 +29,7 @@ func lexerTest(t *testing.T, input string) {
 			}
 		default:
 			cnt++
-			t.Errorf("expected a Number or End, got %s", token)
+			t.Errorf("expected a Number or End, got %s", token.String())
 		}
 	}
 
@@ -74,12 +74,12 @@ func simpleLexerTest(t *testing.T, description string, check checkFn, testCases 
 				break Reader
 			default:
 				if token.Value != ex {
-					t.Errorf("%s: expected %q, got %s", description, ex, token)
+					t.Errorf("%s: expected %q, got %s", description, ex, token.String())
 				} else {
 					cnt++
 
 					if !check(token) {
-						t.Errorf("%s: check failed for %s", token)
+						t.Errorf("%s: check failed for %s", token.String())
 					}
 				}
 			}
@@ -200,10 +200,10 @@ func fullLexerTest(t *testing.T, description, line string, expected []string) {
 		default:
 			if cnt < len(expected) {
 				if token.Value != expected[cnt] {
-					t.Errorf("%s: expected %q, got %s", description, expected[cnt], token)
+					t.Errorf("%s: expected %q, got %s", description, expected[cnt], token.String())
 				}
 			} else {
-				t.Errorf("%s: too many tokens; got %s", description, token)
+				t.Errorf("%s: too many tokens; got %s", description, token.String())
 			}
 		}
 	}
@@ -215,7 +215,7 @@ func fullLexerTest(t *testing.T, description, line string, expected []string) {
 
 var lexerFullCases = []lexerFullTestCase{
 	{"regular sentence lexing", "Gene 23p, too.",
-		[]string{"gene", " ", "23", "p", ",", " ", "too", "."}},
+		[]string{"gene", " ", "23p", ",", " ", "too", "."}},
 	{"abbreviation handling", "Mr. White.",
 		[]string{"mr", ".", " ", "white", "."}},
 	{"alt space/linebreak detection", "1 \t 2 \v 3 \u00A0 4 \n",
@@ -227,7 +227,7 @@ var lexerFullCases = []lexerFullTestCase{
 	{"digits-dot-word", "123.abc",
 		[]string{"123", ".", "abc"}},
 	{"digits-comma-digits-word", "123,456abc",
-		[]string{"123,456", "abc"}},
+		[]string{"123,456abc"}},
 	{"digits-comma-word", "123,abc",
 		[]string{"123", ",", "abc"}},
 	{"dash at end of word", "this- that",
@@ -243,9 +243,9 @@ var lexerFullCases = []lexerFullTestCase{
 	{"entity detection at end of word", "x&alpha; x",
 		[]string{"xα", " ", "x"}},
 	{"entity detection in string starting with digits", "1&alpha;x",
-		[]string{"1", "αx"}},
+		[]string{"1αx"}},
 	{"entity detection in word only with digit", "1&alpha;",
-		[]string{"1", "α"}},
+		[]string{"1α"}},
 	{"entity detection in alnum starting with digits", "1&amp;x",
 		[]string{"1", "&", "x"}},
 	{"entity detection in word ending with digits", "x&alpha;1",

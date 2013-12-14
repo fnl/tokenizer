@@ -430,14 +430,14 @@ func lexWord(l *lexer) stateFn {
 // lexNumber consumes and produces a number
 func lexNumber(l *lexer) stateFn {
 	l.acceptOn(unicode.IsDigit)
-	switch r := l.scan(); r {
-	case ',':
+	switch r := l.scan(); {
+	case r == ',':
 		if unicode.IsDigit(l.peek()) {
 			return lexNumber // continue (recursion-safe)
 		} else {
 			l.undo()
 		}
-	case '.':
+	case r == '.':
 		if unicode.IsDigit(l.peek()) {
 			l.acceptOn(unicode.IsDigit)
 			if l.peek() == '.' {
@@ -446,6 +446,8 @@ func lexNumber(l *lexer) stateFn {
 		} else {
 			l.undo()
 		}
+	case unicode.IsLetter(r):
+		return lexWord // treat as word
 	default:
 		l.undo()
 	}

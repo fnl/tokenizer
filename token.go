@@ -9,8 +9,8 @@ type TokenClass int
 const (
 	EndToken       TokenClass = iota // end-of-input token
 	LinebreakToken                   // linebreak token
-	WordToken                        // alphanumeric token
-	NumberToken                      // numeric (digits) token
+	WordToken                        // alphanumeric token (with '_', '.', or '-' runes inside)
+	NumberToken                      // numeric (digits) token (with ','* dec. and '.'? f.p. sep.)
 	SpaceToken                       // whitespaces, tabs, etc. (category Z)
 	SymbolToken                      // anything else; non-whitespace, single rune
 )

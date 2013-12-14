@@ -160,6 +160,7 @@ func tokenize(file io.Reader, options tokenizer.Option, sep string) {
 
 	close(output)
 	<-semaphore
+	glog.Flush()
 }
 
 func convertTokens(in chan tokenizer.Token, sep string, out chan string, done chan int) {

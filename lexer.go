@@ -81,7 +81,7 @@ const (
 	Entities   Option = 1 << iota   // unescape HTML entities
 	Quotes     Option = 1 << iota   // normalize single quotes
 	Lowercase  Option = 1 << iota   // normalize the case of words
-	AllOptions        = 1<<iota - 1 // use all options
+	AllOptions Option = 1<<iota - 1 // use all options
 	NoOptions         = Option(0)   // use no options
 )
 

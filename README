@@ -21,6 +21,9 @@ In addition, a command-line interface is provided:
 github.com/fnl/tokenizer/fnltok
 -------------------------------
 
+Installation:
+go install github.com/fnl/tokenizer/fnltok
+
 Usage:
 fnltok [options] [TEXTFILE ...]
 

@@ -130,7 +130,7 @@ type lexerOptionsTestCase struct {
 func lexerOptionsTest(t *testing.T, description string, opts Option, expected []string) {
 	in := make(chan string)
 	out := Lex(in, 10, opts)
-	in <- " \nA&alpha;''"
+	in <- " \nA\u2014&alpha;''"
 	i := -1
 	close(in)
 
@@ -157,25 +157,31 @@ func lexerOptionsTest(t *testing.T, description string, opts Option, expected []
 
 var lexerOptionsCases = []lexerOptionsTestCase{
 	{"Spaces", Spaces,
-		[]string{" ", "A", "&", "alpha", ";", "'", "'"}},
+		[]string{" ", "A", "\u2014", "&", "alpha", ";", "'", "'"}},
 	{"Linebreaks", Linebreaks,
-		[]string{"\n", "A", "&", "alpha", ";", "'", "'"}},
+		[]string{"\n", "A", "\u2014", "&", "alpha", ";", "'", "'"}},
 	{"Spaces|Linebreaks", Spaces | Linebreaks,
-		[]string{" ", "\n", "A", "&", "alpha", ";", "'", "'"}},
+		[]string{" ", "\n", "A", "\u2014", "&", "alpha", ";", "'", "'"}},
 	{"Entities", Entities,
-		[]string{"Aα", "'", "'"}},
+		[]string{"A", "\u2014", "α", "'", "'"}},
 	{"Quotes", Quotes,
-		[]string{"A", "&", "alpha", ";", "\""}},
+		[]string{"A", "\u2014", "&", "alpha", ";", "\""}},
 	{"Linebreaks", Greek,
-		[]string{"A", "&", "alpha", ";", "'", "'"}},
+		[]string{"A", "\u2014", "&", "alpha", ";", "'", "'"}},
+	{"Linebreaks", Hyphens,
+		[]string{"A", "-", "&", "alpha", ";", "'", "'"}},
 	{"Entities|Quotes", Entities | Quotes,
-		[]string{"Aα", "\""}},
+		[]string{"A", "\u2014", "α", "\""}},
+	{"Entities|Hyphens", Entities | Hyphens,
+		[]string{"A-α", "'", "'"}},
 	{"Entities|Greek", Entities | Greek,
-		[]string{"Aalpha", "'", "'"}},
+		[]string{"A", "\u2014", "alpha", "'", "'"}},
+	{"Entities|Greek|Hyphens", Entities | Greek | Hyphens,
+		[]string{"A-alpha", "'", "'"}},
 	{"Lowercase", Lowercase,
-		[]string{"a", "&", "alpha", ";", "'", "'"}},
+		[]string{"a", "\u2014", "&", "alpha", ";", "'", "'"}},
 	{"Lowercase|Spaces", Lowercase | Spaces,
-		[]string{" ", "a", "&", "alpha", ";", "'", "'"}},
+		[]string{" ", "a", "\u2014", "&", "alpha", ";", "'", "'"}},
 }
 
 func TestLexerOptions(t *testing.T) {

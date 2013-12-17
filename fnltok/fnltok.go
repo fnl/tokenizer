@@ -26,15 +26,17 @@ var lowercase bool
 var quotes bool
 var spaces bool
 var greek bool
+var hyphens bool
 var split bool
 var tsv bool
 var cpuProfileFile string
 var heapProfileFile string
 
 func init() {
-	flag.BoolVar(&all, "all", false, "enable -entities, -lowercase, and -quotes")
+	flag.BoolVar(&all, "all", false, "enable -entities, -lowercase, -quotes, -greek and -hyphens")
 	flag.BoolVar(&entities, "entities", false, "unescape HTML entities")
 	flag.BoolVar(&greek, "greek", false, "expand Greek letters")
+	flag.BoolVar(&hyphens, "hyphens", false, "map dashes and hyphens")
 	flag.BoolVar(&lowercase, "lowercase", false, "lowercase words")
 	flag.BoolVar(&quotes, "quotes", false, "normalize quotes")
 	flag.BoolVar(&split, "split", false, "split tokens by newlines (default: spaces)")
@@ -59,14 +61,11 @@ func main() {
 	}
 
 	if all {
-		options = tokenizer.Entities | tokenizer.Quotes | tokenizer.Lowercase
-	}
-	if spaces || tsv {
-		options = options | tokenizer.Spaces
-
-		if spaces && tsv {
-			glog.Fatalln("-spaces and -tsv are incompatible options")
-		}
+		options = tokenizer.Entities |
+			tokenizer.Quotes |
+			tokenizer.Lowercase |
+			tokenizer.Hyphens |
+			tokenizer.Greek
 	}
 	if entities {
 		options |= tokenizer.Entities
@@ -74,11 +73,21 @@ func main() {
 	if greek {
 		options |= tokenizer.Greek
 	}
-	if quotes {
-		options |= tokenizer.Quotes
+	if hyphens {
+		options |= tokenizer.Hyphens
 	}
 	if lowercase {
 		options |= tokenizer.Lowercase
+	}
+	if quotes {
+		options |= tokenizer.Quotes
+	}
+	if spaces || tsv {
+		options |= tokenizer.Spaces
+
+		if spaces && tsv {
+			glog.Fatalln("-spaces and -tsv are incompatible options")
+		}
 	}
 
 	if cpuProfileFile != "" {

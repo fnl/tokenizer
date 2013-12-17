@@ -14,7 +14,9 @@ Options:
 1. Normalization of quotes and dashes;
 2. Tokenization of spaces and/or linebreaks;
 3. Lowering the case of all words;
-4. Unescaping of HTML entities.
+4. Unescaping of HTML entities;
+5. Expansion of Greek letters to Latin names;
+6. Mapping of Unicode hpyhens and dashes to `-`.
 
 In addition, a command-line tokenizer is provided as `fnltok`:
   go install github.com/fnl/tokenizer/fnltok
@@ -101,6 +103,7 @@ const (
 	Quotes     Option = 1 << iota   // normalize single quotes
 	Lowercase  Option = 1 << iota   // normalize the case of words
 	Greek      Option = 1 << iota   // expand Greek letters
+	Hyphens    Option = 1 << iota   // replace hyphens with ASCII
 	AllOptions Option = 1<<iota - 1 // use all options
 	NoOptions         = Option(0)   // use no options
 )
@@ -121,6 +124,26 @@ var normalQuote = map[rune]string{
 	'‚':  "„",  // lower single quote to lower double quote
 	'\'': "\"", // single quote/apostrophe to double quote
 }
+
+/*
+var mapHyphen = map[rune]rune{
+	'\u00AD': '-', // soft hyphen
+	'\u05BE': '-', // hebrew maqaf word hypen
+	'\u2010': '-', // hypen
+	'\u2011': '-', // non-breaking hyphen
+	'\u2012': '-', // figure dash
+	'\u2013': '-', // en dash (ranges)
+	'\u2014': '-', // em dash (breaks)
+	'\u2015': '-', // quotation dash
+	'\u2212': '-', // minus sign
+	'\uFE58': '-', // small em dash
+	'\uFE63': '-', // small hyphen-minus
+	'\uFF0D': '-', // full-width hyphen-minus
+}
+*/
+
+// collection of Unicode hyphens and dashes (except ASCII hyphen-minus)
+const hyphens string = "\u00AD\u05BE\u2010\u2011\u2012\u2013\u2014\u2015\u2212\uFE58\uFE63\uFF0D"
 
 // mapping of Greek letters to Latin names
 var greekLetter = map[rune]string{
@@ -201,6 +224,10 @@ var greekLetter = map[rune]string{
 //     U+02BC (modifier apostrophe) with U+0027 ("'" - apostrophe).
 //   Lowercase:
 //     lower-case all words.
+//   Greek:
+//     expand Greek letters to Latin names (Alpha, Beta, ...).
+//   Hyphens:
+//     map various Unicode hyphens to the ASCII hyphen-minus.
 //   NoOptions:
 //     use none of the options (the zero value default).
 //   AllOptions:
@@ -226,12 +253,13 @@ func LexAllOptions(input chan string, outputBufferSize int) chan Token {
 	return Lex(input, outputBufferSize, AllOptions)
 }
 
-// create a lexer that unescapes entities, maps quotes and lowercases words,
+// create a lexer that unescapes entities, maps quotes and hyphens,
+// expands Greek letters and lowercases words
 // with an output buffer of 100 tokens
 //
 // This lexer is particularly useful to parse generic, line-based input.
 func LexLines(input chan string) chan Token {
-	return Lex(input, 100, Entities|Quotes|Lowercase)
+	return Lex(input, 100, Entities|Quotes|Lowercase|Greek|Hyphens)
 }
 
 // true if the scanner emits spaces
@@ -260,8 +288,13 @@ func (l *lexer) lowersWords() bool {
 }
 
 // true if this lexer expands Greek letters to Latin names
-func (l *lexer) expandGreek() bool {
+func (l *lexer) expandsGreek() bool {
 	return l.options&Greek != 0
+}
+
+// true if this lexer maps dashes and hyphens to hyphen-minus
+func (l *lexer) mapsHyphens() bool {
+	return l.options&Hyphens != 0
 }
 
 // run receives strings from the input channel;
@@ -269,7 +302,7 @@ func (l *lexer) expandGreek() bool {
 // finally, send the tokens back through the output channel;
 // break the loop and send back `nil` if the input is closed
 func (l *lexer) run() {
-	options := make([]string, 6)
+	options := make([]string, 7)
 	if l.emitsSpaces() {
 		options[0] = "Spaces "
 	}
@@ -285,8 +318,11 @@ func (l *lexer) run() {
 	if l.lowersWords() {
 		options[4] = "Lowercase "
 	}
-	if l.lowersWords() {
+	if l.expandsGreek() {
 		options[5] = "Greek "
+	}
+	if l.mapsHyphens() {
+		options[6] = "Hyphens "
 	}
 	glog.Infof("%s starting up; options: %s\n", l.name, strings.Join(options, ""))
 
@@ -335,6 +371,13 @@ func (l *lexer) scan() (r rune) {
 	}
 
 	r, l.width = utf8.DecodeRuneInString(l.buffer[l.pos:])
+
+	if l.mapsHyphens() && strings.IndexRune(hyphens, r) != -1 {
+		l.buffer = l.buffer[:l.pos] + "-" + l.buffer[l.pos+l.width:]
+		l.width = len("-")
+		r = '-'
+	}
+
 	l.pos += l.width
 	return r
 }
@@ -491,6 +534,18 @@ func lexWord(l *lexer) stateFn {
 			p := l.peek()
 			if isLetterOrDigit(p) {
 				continue
+			} else if p == '&' && l.unescapesEntities() {
+				// check if an entity is coming along
+				off := l.pos - l.width
+				l.scan() // the ampersand
+				if l.probeEntity() && isLetterOrDigit(l.peek()) {
+					// found a letter or digit entity
+					continue
+				} else {
+					// undo back to before r
+					l.pos = off
+					l.width = 0
+				}
 			} else {
 				l.undo() // drop r from the word
 			}
@@ -503,7 +558,7 @@ func lexWord(l *lexer) stateFn {
 		case !isLetterOrDigit(r):
 			l.undo() // drop r from the word
 		default:
-			if l.expandGreek() && greekLetter[r] != "" {
+			if l.expandsGreek() && greekLetter[r] != "" {
 				before := l.buffer[:l.pos-l.width]
 				after := l.buffer[l.pos:]
 				l.buffer = before + greekLetter[r] + after

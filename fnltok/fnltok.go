@@ -25,6 +25,7 @@ var entities bool
 var lowercase bool
 var quotes bool
 var spaces bool
+var greek bool
 var split bool
 var tsv bool
 var cpuProfileFile string
@@ -33,6 +34,7 @@ var heapProfileFile string
 func init() {
 	flag.BoolVar(&all, "all", false, "enable -entities, -lowercase, and -quotes")
 	flag.BoolVar(&entities, "entities", false, "unescape HTML entities")
+	flag.BoolVar(&greek, "greek", false, "expand Greek letters")
 	flag.BoolVar(&lowercase, "lowercase", false, "lowercase words")
 	flag.BoolVar(&quotes, "quotes", false, "normalize quotes")
 	flag.BoolVar(&split, "split", false, "split tokens by newlines (default: spaces)")
@@ -68,6 +70,9 @@ func main() {
 	}
 	if entities {
 		options |= tokenizer.Entities
+	}
+	if greek {
+		options |= tokenizer.Greek
 	}
 	if quotes {
 		options |= tokenizer.Quotes

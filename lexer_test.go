@@ -19,7 +19,7 @@ func lexerTest(t *testing.T, input string) {
 			expected := fmt.Sprintf("%d", cnt)
 
 			if token.Value != expected {
-				t.Errorf("expected %q, got %q", expected, token.Value)
+				t.Errorf("expected %q, got %s", expected, token.String())
 			}
 		case EndToken:
 			if cnt != 4 {
@@ -89,11 +89,12 @@ func simpleLexerTest(t *testing.T, description string, check checkFn, testCases 
 			t.Errorf("%s: expected 2 tokens, got %d", description, cnt)
 		}
 	}
+
+	close(in)
 	ensureClosing(t, description, in, out)
 }
 
 func ensureClosing(t *testing.T, description string, in chan string, out chan Token) {
-	close(in)
 	tok, ok := <-out
 
 	if ok {
@@ -129,46 +130,52 @@ type lexerOptionsTestCase struct {
 func lexerOptionsTest(t *testing.T, description string, opts Option, expected []string) {
 	in := make(chan string)
 	out := Lex(in, 10, opts)
-	in <- " \nA&amp;''"
+	in <- " \nA&alpha;''"
 	i := -1
+	close(in)
 
 	for token := range out {
 		i++
 
 		if i < len(expected) {
 			if token.Value != expected[i] {
-				t.Errorf("%s: expected %q, got %s at %d", description, expected[i], token, i)
+				t.Errorf("%s: expected %q, got %s at %d", description, expected[i], token.String(), i)
 			}
 		} else if token.IsEnd() {
 			break
 		} else {
-			t.Errorf("%s: more tokens than expected; got %s at %d", description, token, i)
+			t.Errorf("%s: more tokens than expected; got %s at %d", description, token.String(), i)
 		}
 	}
 
 	if len(expected) != i {
 		t.Errorf("%s: expected %d tokens, got %d", description, len(expected), i)
 	}
+
 	ensureClosing(t, description, in, out)
 }
 
 var lexerOptionsCases = []lexerOptionsTestCase{
 	{"Spaces", Spaces,
-		[]string{" ", "A", "&", "amp", ";", "'", "'"}},
+		[]string{" ", "A", "&", "alpha", ";", "'", "'"}},
 	{"Linebreaks", Linebreaks,
-		[]string{"\n", "A", "&", "amp", ";", "'", "'"}},
+		[]string{"\n", "A", "&", "alpha", ";", "'", "'"}},
 	{"Spaces|Linebreaks", Spaces | Linebreaks,
-		[]string{" ", "\n", "A", "&", "amp", ";", "'", "'"}},
+		[]string{" ", "\n", "A", "&", "alpha", ";", "'", "'"}},
 	{"Entities", Entities,
-		[]string{"A", "&", "'", "'"}},
+		[]string{"Aα", "'", "'"}},
 	{"Quotes", Quotes,
-		[]string{"A", "&", "amp", ";", "\""}},
+		[]string{"A", "&", "alpha", ";", "\""}},
+	{"Linebreaks", Greek,
+		[]string{"A", "&", "alpha", ";", "'", "'"}},
 	{"Entities|Quotes", Entities | Quotes,
-		[]string{"A", "&", "\""}},
+		[]string{"Aα", "\""}},
+	{"Entities|Greek", Entities | Greek,
+		[]string{"Aalpha", "'", "'"}},
 	{"Lowercase", Lowercase,
-		[]string{"a", "&", "amp", ";", "'", "'"}},
+		[]string{"a", "&", "alpha", ";", "'", "'"}},
 	{"Lowercase|Spaces", Lowercase | Spaces,
-		[]string{" ", "a", "&", "amp", ";", "'", "'"}},
+		[]string{" ", "a", "&", "alpha", ";", "'", "'"}},
 }
 
 func TestLexerOptions(t *testing.T) {
@@ -237,19 +244,19 @@ var lexerFullCases = []lexerFullTestCase{
 	{"entity detection basics", "k&amp;k",
 		[]string{"k", "&", "k"}},
 	{"entity detection in word", "x&alpha;x",
-		[]string{"xαx"}},
+		[]string{"xalphax"}},
 	{"entity detection at start of word", "x &alpha;x",
-		[]string{"x", " ", "αx"}},
+		[]string{"x", " ", "alphax"}},
 	{"entity detection at end of word", "x&alpha; x",
-		[]string{"xα", " ", "x"}},
+		[]string{"xalpha", " ", "x"}},
 	{"entity detection in string starting with digits", "1&alpha;x",
-		[]string{"1αx"}},
+		[]string{"1alphax"}},
 	{"entity detection in word only with digit", "1&alpha;",
-		[]string{"1α"}},
+		[]string{"1alpha"}},
 	{"entity detection in alnum starting with digits", "1&amp;x",
 		[]string{"1", "&", "x"}},
 	{"entity detection in word ending with digits", "x&alpha;1",
-		[]string{"xα1"}},
+		[]string{"xalpha1"}},
 	{"entity detection requires semicolon", "x&alphax",
 		[]string{"x", "&", "alphax"}},
 	{"entity detection requires valid entity name", "x&grblfx;x",

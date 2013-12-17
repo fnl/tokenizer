@@ -7,15 +7,34 @@ Numbers may contain commas between digits,
 but only before the comma-separator (a dot).
 Anything else not a linebreak, control character,
 or space is considered a symbol.
-Symbols are always single runes.
+Symbol tokens are always single ("one-character") runes.
 
 Options:
-Normalization of quotes and dashes;
-Tokenization of spaces and/or linebreaks;
-Lowering the case of all words;
-Unescaping of HTML entities.
 
-SYNOPSIS
+1. Normalization of quotes and dashes;
+2. Tokenization of spaces and/or linebreaks;
+3. Lowering the case of all words;
+4. Unescaping of HTML entities.
+
+In addition, a command-line tokenizer is provided as `fnltok`:
+  go install github.com/fnl/tokenizer/fnltok
+
+Usage:
+  fnltok [options] [TEXTFILE ...]
+
+`fnltok` is a high-throughput, line-based command-line interface
+for the tokenizer that writes the tokens to `STDOUT`.
+This script is about 100 times faster than an equivalent Perl tokenizer
+using regular expressions for the same task.
+It can tokenize input based on lines and/or tab-separated values
+(while preserving the tabs).
+The latter is useful to tokenize text in tabulated data files.
+Because file I/O soon becomes the main bottleneck,
+having more than two or three parallel tokenizer processes
+(`$GOMAXPROCS`)
+does not improve its speed any further.
+
+## Synopsis
 
   // create an input channel for tokenization:
   in := make(chan string)
@@ -81,6 +100,7 @@ const (
 	Entities   Option = 1 << iota   // unescape HTML entities
 	Quotes     Option = 1 << iota   // normalize single quotes
 	Lowercase  Option = 1 << iota   // normalize the case of words
+	Greek      Option = 1 << iota   // expand Greek letters
 	AllOptions Option = 1<<iota - 1 // use all options
 	NoOptions         = Option(0)   // use no options
 )
@@ -102,13 +122,68 @@ var normalQuote = map[rune]string{
 	'\'': "\"", // single quote/apostrophe to double quote
 }
 
+// mapping of Greek letters to Latin names
+var greekLetter = map[rune]string{
+	'\u0391': "Alpha",
+	'\u0392': "Beta",
+	'\u0393': "Gamma",
+	'\u0394': "Delta",
+	'\u0395': "Epsilon",
+	'\u0396': "Zeta",
+	'\u0397': "Eta",
+	'\u0398': "Theta",
+	'\u0399': "Iota",
+	'\u039A': "Kappa",
+	'\u039B': "Lamda",
+	'\u039C': "Mu",
+	'\u039D': "Nu",
+	'\u039E': "Xi",
+	'\u039F': "Omicron",
+	'\u03A0': "Pi",
+	'\u03A1': "Rho",
+	// U+03A2 ("Sigma final") is invalid
+	'\u03A3': "Sigma",
+	'\u03A4': "Tau",
+	'\u03A5': "Upsilon",
+	'\u03A6': "Phi",
+	'\u03A7': "Chi",
+	'\u03A8': "Psi",
+	'\u03A9': "Omega",
+	// lowercase
+	'\u03B1': "alpha",
+	'\u03B2': "beta",
+	'\u03B3': "gamma",
+	'\u03B4': "delta",
+	'\u03B5': "epsilon",
+	'\u03B6': "zeta",
+	'\u03B7': "eta",
+	'\u03B8': "theta",
+	'\u03B9': "iota",
+	'\u03BA': "kappa",
+	'\u03BB': "lamda",
+	'\u03BC': "mu",
+	'\u03BD': "nu",
+	'\u03BE': "xi",
+	'\u03BF': "omicron",
+	'\u03C0': "pi",
+	'\u03C1': "rho",
+	'\u03C2': "sigma", // final
+	'\u03C3': "sigma",
+	'\u03C4': "tau",
+	'\u03C5': "upsilon",
+	'\u03C6': "phi",
+	'\u03C7': "chi",
+	'\u03C8': "psi",
+	'\u03C9': "omega",
+}
+
 // Lex starts a scanner process to lex string input,
 // returning a Token output channel.
 // The outputBufferSize is the buffer size
 // that should be used to create the output channel.
 //
 // The scanner waits for strings to lex on the input channel.
-// After scanning, it send the found tokens back via the output channel.
+// After lexing, it sends the found tokens back via the output channel.
 // After all tokens have been output for a given input, an EndToken is sent.
 // If the input channel is closed,
 // the output channel closes after the last (End) token has been emitted.
@@ -184,12 +259,17 @@ func (l *lexer) lowersWords() bool {
 	return l.options&Lowercase != 0
 }
 
+// true if this lexer expands Greek letters to Latin names
+func (l *lexer) expandGreek() bool {
+	return l.options&Greek != 0
+}
+
 // run receives strings from the input channel;
 // then, scan the string, storing the emitted tokens;
 // finally, send the tokens back through the output channel;
 // break the loop and send back `nil` if the input is closed
 func (l *lexer) run() {
-	options := make([]string, 5)
+	options := make([]string, 6)
 	if l.emitsSpaces() {
 		options[0] = "Spaces "
 	}
@@ -204,6 +284,9 @@ func (l *lexer) run() {
 	}
 	if l.lowersWords() {
 		options[4] = "Lowercase "
+	}
+	if l.lowersWords() {
+		options[5] = "Greek "
 	}
 	glog.Infof("%s starting up; options: %s\n", l.name, strings.Join(options, ""))
 
@@ -359,6 +442,7 @@ func lexText(l *lexer) stateFn {
 		case r == 0:
 			return lexEnd // end
 		case unicode.IsLetter(r):
+			l.undo()       // (r might be replaced)
 			return lexWord // word
 		case unicode.IsDigit(r):
 			return lexNumber // number
@@ -406,21 +490,27 @@ func lexWord(l *lexer) stateFn {
 		case r == '-' || r == '.' || r == '_':
 			p := l.peek()
 			if isLetterOrDigit(p) {
-				l.scan() // also consume the alphanumeric rune
-				continue // and continue
+				continue
 			} else {
-				l.undo() // drop the rune from the word
+				l.undo() // drop r from the word
 			}
 		case r == '&':
 			if l.probeEntity() {
-				continue // continue by rescanning the now-escaped entity
+				continue // rescan the unescaped entity
 			} else {
 				l.undo() // drop the ampersand from the word
 			}
 		case !isLetterOrDigit(r):
-			l.undo() // drop the rune from the word
+			l.undo() // drop r from the word
 		default:
-			continue // consume the alphanumeric rune and continue
+			if l.expandGreek() && greekLetter[r] != "" {
+				before := l.buffer[:l.pos-l.width]
+				after := l.buffer[l.pos:]
+				l.buffer = before + greekLetter[r] + after
+				// move ahead (everything part of the word)
+				l.pos += len(greekLetter[r]) - l.width
+			}
+			continue
 		}
 		l.emit(WordToken)
 		return lexText // scan next token
@@ -447,6 +537,7 @@ func lexNumber(l *lexer) stateFn {
 			l.undo()
 		}
 	case unicode.IsLetter(r):
+		l.undo()
 		return lexWord // treat as word
 	default:
 		l.undo()
